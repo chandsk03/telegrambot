@@ -1210,30 +1210,33 @@ bot.command('top', async (ctx) => {
 });
 
 // Group Management
-bot.command('addgroup', async (ctx) => {
+bot.command("addgroup", async (ctx) => {
     try {
-        if (!ADMINS.has(ctx.from.id)) return;
-        if (!['group', 'supergroup'].includes(ctx.chat.type)) {
-            return ctx.reply('❌ This command works only in groups!');
+        if (!["group", "supergroup"].includes(ctx.chat.type)) {
+            return ctx.reply("❌ This command only works in groups.");
         }
 
-        // Check bot admin status
-        const botMember = await ctx.getChatMember(ctx.botInfo.id);
-        if (!botMember || !['administrator', 'creator'].includes(botMember.status)) {
-            return ctx.reply('❌ Make me admin first!');
+        // Get group admin list
+        const chatAdmins = await ctx.getChatAdministrators();
+        const isAdmin = chatAdmins.some((admin) => admin.user.id === ctx.from.id);
+
+        if (!isAdmin) {
+            return ctx.reply("🚫 Only group admins can use this command.");
         }
 
-        const code = await manager.createGroup(ctx.chat.id, ctx.chat.title);
-        const groupLink = `https://t.me/${ctx.botInfo.username}?start=${code}`;
-        
-        const msg = await ctx.replyWithMarkdown(
-            `✅ *Group Registered!*\n\n` +
-            `🔗 Invite Link:\n\`${groupLink}\`\n\n` +
-            `New members will be tracked automatically!`
+        const groupId = ctx.chat.id;
+        const groupName = ctx.chat.title;
+
+        // Store the group in the database
+        await db.runAsync(
+            `INSERT INTO groups (group_id, group_name) VALUES (?, ?) ON CONFLICT(group_id) DO UPDATE SET group_name = excluded.group_name`,
+            [groupId, groupName]
         );
-        deleteMessage(ctx, msg.message_id, 15000);
+
+        ctx.reply(`✅ Group "${groupName}" has been added by an admin!`);
     } catch (err) {
-        console.error('AddGroup Error:', err);
+        console.error("Error in /addgroup:", err);
+        ctx.reply("❌ Failed to add group. Try again.");
     }
 });
 
